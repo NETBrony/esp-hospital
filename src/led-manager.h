@@ -3,10 +3,6 @@
 
 #include <Arduino.h>
 
-// #define led_esp 2
-// #define led_red 32
-// #define led_green 33
-
 enum LedState{
   STATE_IDLE,
   STATE_WAITING,

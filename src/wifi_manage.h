@@ -7,13 +7,12 @@
 #include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include "WebPortal.h"
 
 class WiFiManager {
 public:
     WiFiManager();
     void begin(const char* apName, const char* apPass = NULL);
-    void loop(); // สำหรับ process DNS
+    void loop(); // สำคัญ! เราจะสั่ง Restart ในนี้
     bool isConnected();
     void resetSettings();
 
@@ -22,6 +21,10 @@ private:
     DNSServer dnsServer;
     Preferences preferences;
     bool _isAPMode = false;
+
+    // [เพิ่ม] ตัวแปรสำหรับหน่วงเวลา Restart
+    bool _shouldRestart = false;
+    unsigned long _restartTimer = 0;
 
     void setupAP(const char* ssid, const char* pass);
     void setupRoutes();
