@@ -80,7 +80,7 @@ void loop() {
     if (success) {
       float t = sht30.getTemperature();
       float h = sht30.getHumidity();
-      Serial.printf("[Sensor] Temp: %.2f C, Humi: %.2f %%\n", t, h);
+      Serial.printf("[Sensor] Temp: %.1f °C, Humi: %.1f %%\n", t, h);
     } else {
       Serial.println("[Sensor] Read Fail! (Check wiring or Pull-up resistors)");
     }
