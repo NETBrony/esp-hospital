@@ -3,35 +3,36 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
 class WiFiManager {
 public:
     WiFiManager();
-    void begin(const char* apName, const char* apPass = NULL);
-    void loop(); // สำคัญ! เราจะสั่ง Restart ในนี้
+    void begin(const char* deviceName);
+    void loop();
     bool isConnected();
     void resetSettings();
-    
-    String getToken();
-    String getDeviceNmae();
+
+    // [แก้ไข] ย้ายลงมาตรงนี้เพื่อให้ Callback เรียกใช้ได้
+    void connectToWiFi(String ssid, String pass);
+    void scanAndSendWiFi();
 
 private:
-    AsyncWebServer server;
-    DNSServer dnsServer;
     Preferences preferences;
-    bool _isAPMode = false;
+    bool _isProvisioningMode = false;
+    String _deviceName;
 
-    // [เพิ่ม] ตัวแปรสำหรับหน่วงเวลา Restart
-    bool _shouldRestart = false;
-    unsigned long _restartTimer = 0;
+    BLEServer* pServer = NULL;
+    BLECharacteristic* pCharCommand = NULL;
+    BLECharacteristic* pCharData    = NULL;
+    BLECharacteristic* pCharStatus  = NULL;
 
-    void setupAP(const char* ssid, const char* pass);
-    void setupRoutes();
-    String getScanJson();
+    void setupBLE();
 };
 
 #endif
