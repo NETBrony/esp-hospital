@@ -13,19 +13,20 @@
 class WiFiManager {
 public:
     WiFiManager();
-    void begin(const char* deviceName);
+    // [แก้ไข] รับ Serial Number เพื่อไปตั้งเป็นชื่อ Bluetooth
+    void begin(const char* serialNumber); 
+    
     void loop();
     bool isConnected();
     void resetSettings();
 
-    // [แก้ไข] ย้ายลงมาตรงนี้เพื่อให้ Callback เรียกใช้ได้
+    // Callback functions
     void connectToWiFi(String ssid, String pass);
     void scanAndSendWiFi();
 
 private:
     Preferences preferences;
-    bool _isProvisioningMode = false;
-    String _deviceName;
+    String _deviceName; // เก็บชื่ออุปกรณ์ (Serial Number)
 
     BLEServer* pServer = NULL;
     BLECharacteristic* pCharCommand = NULL;

@@ -1,5 +1,9 @@
 #include "wifi_manage.h"
 
+// =========================================================
+// 🔒 SYSTEM UUIDS (HIDDEN FROM USER)
+// =========================================================
+// ส่วนนี้ User ทั่วไปไม่ต้องแก้ไข เป็นมาตรฐานของ Platform คุณ
 #define SERVICE_UUID           "00000001-5e26-4ac5-9004-76aa55060412"
 #define CHAR_COMMAND_UUID      "00000002-5e26-4ac5-9004-76aa55060412"
 #define CHAR_DATA_UUID         "00000003-5e26-4ac5-9004-76aa55060412"
@@ -32,7 +36,7 @@ public:
         DeserializationError error = deserializeJson(doc, data);
 
         if (!error) {
-            // [แก้ไข] ArduinoJson v7 เช็คแบบนี้ครับ
+            // ArduinoJson v7 Syntax
             if (doc["ssid"].is<const char*>() && doc["pass"].is<const char*>()) {
                 String ssid = doc["ssid"];
                 String pass = doc["pass"];
@@ -48,10 +52,11 @@ public:
 
 WiFiManager::WiFiManager() {}
 
-void WiFiManager::begin(const char* deviceName) {
-    _deviceName = deviceName;
+// [แก้ไข] รับ Serial Number มาตั้งเป็นชื่อ Bluetooth
+void WiFiManager::begin(const char* serialNumber) {
+    _deviceName = serialNumber; // ใช้ Serial เป็นชื่อ Bluetooth เลย
+    
     preferences.begin("wifi-config", false);
-
     String ssid = preferences.getString("ssid", "");
     String pass = preferences.getString("pass", "");
 
@@ -74,29 +79,21 @@ void WiFiManager::begin(const char* deviceName) {
 }
 
 void WiFiManager::setupBLE() {
-    BLEDevice::init(_deviceName.c_str());
+    // ใช้ _deviceName (Serial Number) เป็นชื่อ Bluetooth
+    BLEDevice::init(_deviceName.c_str()); 
+    
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
 
     BLEService *pService = pServer->createService(SERVICE_UUID);
 
-    pCharData = pService->createCharacteristic(
-                      CHAR_DATA_UUID,
-                      BLECharacteristic::PROPERTY_WRITE
-                    );
+    pCharData = pService->createCharacteristic(CHAR_DATA_UUID, BLECharacteristic::PROPERTY_WRITE);
     pCharData->setCallbacks(new MyCallbacks(this));
 
-    pCharStatus = pService->createCharacteristic(
-                      CHAR_STATUS_UUID,
-                      BLECharacteristic::PROPERTY_READ   |
-                      BLECharacteristic::PROPERTY_NOTIFY
-                    );
+    pCharStatus = pService->createCharacteristic(CHAR_STATUS_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
     pCharStatus->addDescriptor(new BLE2902());
 
-    pCharCommand = pService->createCharacteristic(
-                      CHAR_COMMAND_UUID,
-                      BLECharacteristic::PROPERTY_WRITE
-                    );
+    pCharCommand = pService->createCharacteristic(CHAR_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
     pCharCommand->setCallbacks(new MyCallbacks(this));
 
     pService->start();
@@ -107,12 +104,11 @@ void WiFiManager::setupBLE() {
     pAdvertising->setMinPreferred(0x06); 
     BLEDevice::startAdvertising();
     
-    Serial.println("[BLE] Ready to be connected.");
+    Serial.printf("[BLE] Device '%s' is ready to connect.\n", _deviceName.c_str());
 }
 
 void WiFiManager::connectToWiFi(String ssid, String pass) {
     Serial.printf("Saving Creds: %s / %s\n", ssid.c_str(), pass.c_str());
-    
     preferences.putString("ssid", ssid);
     preferences.putString("pass", pass);
 
@@ -140,7 +136,6 @@ void WiFiManager::connectToWiFi(String ssid, String pass) {
 void WiFiManager::scanAndSendWiFi() {
     Serial.println("Scanning WiFi...");
     int n = WiFi.scanNetworks();
-    
     JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
     
@@ -158,8 +153,7 @@ void WiFiManager::scanAndSendWiFi() {
     }
 }
 
-void WiFiManager::loop() {
-}
+void WiFiManager::loop() {}
 
 bool WiFiManager::isConnected() {
     return (WiFi.status() == WL_CONNECTED);
