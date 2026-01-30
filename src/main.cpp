@@ -1,88 +1,59 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <SHT31.h>
-#include "led-manager.h"
-#include "wifi_manage.h" 
+// #include <Wire.h>
+// #include <SHT31.h>
+#include "wifi_manage.h"
 
-// --- Pin Definitions ---
-#define LED_ESP 2
-#define LED_RED 32
-#define LED_GREEN 33
+// =========================================================
+// USER CONFIGURATION
+// =========================================================
+const char* SERIAL_NUMBER = "";
+const char* SECRET_TOKEN  = "";
+const char* DEVICE_NAME   = "";
 
-// --- Objects ---
-LedManager ledManager(LED_ESP, LED_RED, LED_GREEN);
+// =========================================================
+// 📦 OBJECTS
+// =========================================================
+WiFiManager wifiManager;
 
-// [แก้ไข 1] ระบุ Address 0x44 (ค่ามาตรฐาน) หรือ 0x45 ให้ชัดเจน
-SHT31 sht30(0x44); 
-
-WiFiManager wifiManager; 
-
-// --- Variables ---
-unsigned long lastSensorRead = 0;
-const long interval = 2000; 
+// ตัวแปรสำหรับเช็คสถานะการเชื่อมต่อ (เพื่อไม่ให้ Serial พิมพ์รัวๆ)
+bool isConnectedLog = false;
 
 void setup() {
   Serial.begin(115200);
   delay(100);
 
-  // 1. Init LEDs
-  pinMode(LED_ESP, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-  ledManager.begin();
+  Serial.println("\n-------------------------------------");
+  Serial.println("   ESP32 SMART BASE (BLE PROVISION)   ");
+  Serial.println("-------------------------------------");
+  Serial.printf("Device Serial: %s\n", SERIAL_NUMBER);
 
-  // -----------------------------------------------------------
-  // [แก้ไข 2] ต้องสั่ง Start I2C Bus ก่อนเสมอ!
-  // -----------------------------------------------------------
-  // สำหรับ ESP32 มาตรฐาน: SDA=21, SCL=22
-  Wire.begin(); 
-  // หรือถ้าคุณต่อขาอื่น ให้ใช้: Wire.begin(SDA_PIN, SCL_PIN);
-
-  // 2. Init Sensor
-  Serial.println("Initializing SHT31...");
-  
-  // Library บางตัวต้องการ Wire object ใน begin
-  if (sht30.begin()) { 
-    Serial.println("SHT31 Found!");
-  } else {
-    Serial.println("SHT31 Error! Check wiring.");
-  }
-
-  // 3. Start WiFi Manager
-  Serial.println("Attempting to connect to saved WiFi...");
-  wifiManager.begin("SmartFarm_Setup"); 
+  // เริ่มต้นระบบ WiFi / BLE
+  // ส่งชื่ออุปกรณ์ไปให้ Class จัดการ เพื่อใช้เป็นชื่อ Bluetooth
+  wifiManager.begin(DEVICE_NAME);
 }
 
 void loop() {
-  // --- A. ให้ Web Portal ทำงานตลอดเวลา ---
+  // ให้ WiFi Manager ทำงานเบื้องหลัง (เช่น จัดการ BLE)
   wifiManager.loop();
 
-  // --- B. ไฟแสดงสถานะ ---
+  // ตรวจสอบสถานะการเชื่อมต่อ
   if (wifiManager.isConnected()) {
-    digitalWrite(LED_GREEN, HIGH);
-    digitalWrite(LED_RED, LOW);
-    digitalWrite(LED_ESP, HIGH); 
-  } else {
-    digitalWrite(LED_GREEN, LOW);
-    digitalWrite(LED_RED, HIGH);
-    digitalWrite(LED_ESP, (millis() / 500) % 2); 
-  }
-
-  // --- C. อ่านค่า Sensor ---
-  if (millis() - lastSensorRead > interval) {
-    lastSensorRead = millis();
-    
-    // -----------------------------------------------------------
-    // [แก้ไข 3] ต้องสั่ง .read() ก่อนเรียกค่าเสมอ (สำหรับ RobTillaart Lib)
-    // -----------------------------------------------------------
-    bool success = sht30.read(); 
-
-    if (success) {
-      float t = sht30.getTemperature();
-      float h = sht30.getHumidity();
-      Serial.printf("[Sensor] Temp: %.2f C, Humi: %.2f %%\n", t, h);
-    } else {
-      Serial.println("[Sensor] Read Fail! (Check wiring or Pull-up resistors)");
+    if (!isConnectedLog) {
+      Serial.println("\n✅ WiFi Connected!");
+      Serial.print("IP Address: ");
+      Serial.println(WiFi.localIP());
+      Serial.printf("Ready to connect Server with Token: %s\n", SECRET_TOKEN);
+      isConnectedLog = true;
     }
+
+    // --- พื้นที่สำหรับเขียนโปรแกรมของคุณ (YOUR CODE HERE) ---
+    // เช่น อ่าน Sensor, ส่ง MQTT, ฯลฯ
+    // mqtt.connect(SERIAL_NUMBER, SECRET_TOKEN);
+    
+  } else {
+    isConnectedLog = false;
+    // กรณีหลุด หรือกำลังรอการตั้งค่า
+    // Serial.println("Waiting for WiFi...");
+    delay(500);
   }
 }
