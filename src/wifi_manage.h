@@ -15,6 +15,9 @@ public:
     void loop(); // สำคัญ! เราจะสั่ง Restart ในนี้
     bool isConnected();
     void resetSettings();
+    
+    String getToken();
+    String getDeviceNmae();
 
 private:
     AsyncWebServer server;
