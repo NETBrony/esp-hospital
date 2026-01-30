@@ -1,5 +1,5 @@
-#ifndef SECRET_H
-#define SECRET_H
+#ifndef MQTT_H
+#define MQTT_H
 
 //================ MQTT =================
 const char* mqtt_server = "e53e2233d1a141699f1204a648c861c2.s1.eu.hivemq.cloud";
