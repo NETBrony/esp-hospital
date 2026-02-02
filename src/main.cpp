@@ -1,16 +1,18 @@
 #include <Arduino.h>
 #include "wifi_manage.h"
 
+//=====device list========
+#define led_esp   = 2;
+#define led_red   = 32;
+#define led_green = 33;
+
 // =========================================================
 // ⚙️ USER CONFIGURATION
 // =========================================================
 // นำค่าที่ได้จาก React App มาใส่ที่นี่
-const char* SERIAL_NUMBER = "ESP32-XXX-001"; 
+const char* SERIAL_NUMBER = "ESP32-XXX-001";
 const char* SECRET_TOKEN  = "YOUR_SECRET_TOKEN";
 
-// =========================================================
-// 📦 OBJECTS
-// =========================================================
 WiFiManager wifiManager;
 
 // ตัวแปรเช็คสถานะเพื่อป้องกันการพ่น Log รัวๆ
