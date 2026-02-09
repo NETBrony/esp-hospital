@@ -1,68 +1,205 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include "SHT31.h"
 #include "wifi_manage.h"
+#include "mqtt.h" 
 
-//=====device list========
-#define led_esp   = 2;
-#define led_red   = 32;
-#define led_green = 33;
+//===== Device Pin Config ========
+#define LED_ESP   2
+#define LED_RED   32
+#define LED_GREEN 33
+#define RELAY_PIN 17
+
+// ✅ ย้าย SHT30 Address มาประกาศตรงนี้ก่อนเรียกใช้ Class
+#define SHT30_ADDRESS 0x44
 
 // =========================================================
-// ⚙️ USER CONFIGURATION
+// ⚙️ GLOBAL OBJECTS
 // =========================================================
-// นำค่าที่ได้จาก React App มาใส่ที่นี่
-const char* SERIAL_NUMBER = "ESP32-XXX-001";
-const char* SECRET_TOKEN  = "YOUR_SECRET_TOKEN";
+const char* serial_number = "49c4e46a-a15b-4f41-91f3-edbadeb207de";
+const char* device_token  = "e5c0326dac99f43373d8c9b1239d5384";
 
 WiFiManager wifiManager;
 
-// ตัวแปรเช็คสถานะเพื่อป้องกันการพ่น Log รัวๆ
+// ✅ แก้ไขการประกาศ SHT31 ให้รับ Address ตรงนี้
+SHT31 sht(SHT30_ADDRESS);
+
+// MQTT Objects
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
+
+// Timing Variables
 bool isConnectedLog = false;
+unsigned long previousMillis = 0;
+const long interval = 500;        
+unsigned long lastMsgTime = 0;
+const long msgInterval = 5000;   
+bool ledState = LOW;
+
+// =========================================================
+// 📡 MQTT FUNCTIONS
+// =========================================================
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message;
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  Serial.println(message);
+
+  if (String(topic) == topic_control) {
+    if (message == "ON") {
+      Serial.println("Pump turned ON");
+    } else if (message == "OFF") {
+      Serial.println("Pump turned OFF");
+    }
+  }
+}
+
+void setupMQTT() {
+  espClient.setInsecure(); 
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+void reconnectMQTT() {
+  if (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      Serial.println("connected");
+      client.subscribe(topic_control);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again later");
+    }
+  }
+}
+
+// =========================================================
+// 🌡️ SENSOR FUNCTIONS
+// =========================================================
+
+void readAndPublishSensor() {
+  sht.read(); 
+
+  float t = sht.getTemperature();
+  float h = sht.getHumidity();
+
+  if (isnan(t) || isnan(h)) {
+    Serial.println("Failed to read from SHT30 sensor!");
+    return;
+  }
+
+  // ✅ เพิ่ม Logic การปัดเศษทศนิยม 2 ตำแหน่ง
+  // หลักการ: 36.907 -> *100 = 3690.7 -> round = 3691 -> /100.0 = 36.91
+  float t_rounded = round(t * 100.0) / 100.0;
+  float h_rounded = round(h * 100.0) / 100.0;
+
+  JsonDocument doc;
+  doc["temp"] = t_rounded;
+  doc["hum"]  = h_rounded;
+  doc["device"] = serial_number; 
+  
+  char buffer[256];
+  serializeJson(doc, buffer);
+
+  if (client.publish(topic_TempHumi, buffer)) {
+    Serial.print("Published: ");
+    Serial.println(buffer);
+  } else {
+    Serial.println("Publish failed");
+  }
+}
+
+// =========================================================
+// 🚀 MAIN SETUP & LOOP
+// =========================================================
 
 void setup() {
   Serial.begin(115200);
   delay(100);
 
+  // 1. Setup Pins
+  pinMode(LED_ESP, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_GREEN, LOW);
+
+  // 2. Setup SHT30
+  Wire.begin();
+  
+  // ✅ แก้ไข: ไม่ต้องส่ง Address ใน begin() แล้ว เพราะใส่ไปตอนประกาศแล้ว
+  sht.begin(); 
+  
+  uint16_t stat = sht.readStatus();
+  Serial.print("SHT31 status: ");
+  Serial.println(stat, HEX);
+
+  // 3. Setup WiFi Manager
   Serial.println("\n-------------------------------------");
   Serial.println("   ESP32 SMART BASE (BLE PROVISION)   ");
   Serial.println("-------------------------------------");
   
-  // ตรวจสอบว่า User กรอกค่ามาหรือยัง
-  if (String(SERIAL_NUMBER) == "" || String(SERIAL_NUMBER) == "ESP32-XXX-001") {
-    Serial.println("⚠️ WARNING: Please configure SERIAL_NUMBER in main.cpp");
-  }
+  // ถ้าเพิ่ง Flash ใหม่ มันอาจจะยังจำค่าขยะอยู่ ถ้าอยากล้างค่าให้เปิดบรรทัดนี้ 1 รอบ
+  // wifiManager.resetSettings(); 
 
-  // ส่ง Serial Number เข้าไป เพื่อใช้เป็นชื่อ Bluetooth
-  // User จะเห็นชื่อ Bluetooth ตาม Serial Number ที่ตั้งไว้
-  wifiManager.begin(SERIAL_NUMBER);
+  wifiManager.begin(serial_number);
+
+  // 4. Setup MQTT Configuration
+  setupMQTT();
 }
 
 void loop() {
-  // ให้ WiFi Manager ทำงานเบื้องหลัง
   wifiManager.loop();
 
-  // ตรวจสอบสถานะการเชื่อมต่อ
+  unsigned long currentMillis = millis();
+
   if (wifiManager.isConnected()) {
     
-    // ทำงานครั้งเดียวเมื่อต่อเน็ตติด
     if (!isConnectedLog) {
       Serial.println("\n✅ WiFi Connected!");
-      Serial.print("IP Address: ");
-      Serial.println(WiFi.localIP());
-      Serial.printf("Device Ready! Token: %s\n", SECRET_TOKEN);
+      Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
       isConnectedLog = true;
+      digitalWrite(LED_GREEN, HIGH);
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_ESP, HIGH);
     }
 
-    // =========================================================
-    // 🟢 YOUR MAIN CODE HERE (พื้นที่เขียนโปรแกรมของ User)
-    // =========================================================
-    // เช่นอ่านค่า Sensor, ส่ง MQTT
-    // mqtt.connect(SERIAL_NUMBER, SECRET_TOKEN);
-    
+    if (!client.connected()) {
+      static unsigned long lastReconnectAttempt = 0;
+      if (currentMillis - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = currentMillis;
+        reconnectMQTT();
+      }
+    } else {
+      client.loop();
+      if (currentMillis - lastMsgTime >= msgInterval) {
+        lastMsgTime = currentMillis;
+        readAndPublishSensor();
+      }
+    }
+
   } else {
-    // กรณีหลุด หรือกำลังรอการตั้งค่าผ่าน Bluetooth
     isConnectedLog = false;
-    
-    // ไฟกระพริบ หรือ Logic อื่นๆ ตอนเน็ตหลุด
-    delay(200);
+    digitalWrite(LED_GREEN, LOW);
+
+    if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
+      ledState = !ledState;
+      digitalWrite(LED_RED, ledState);
+      digitalWrite(LED_ESP, ledState);
+    }
   }
 }
