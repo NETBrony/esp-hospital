@@ -11,7 +11,6 @@
 #define LED_ESP   2
 #define LED_RED   32
 #define LED_GREEN 33
-#define RELAY_PIN 17
 
 // ✅ ย้าย SHT30 Address มาประกาศตรงนี้ก่อนเรียกใช้ Class
 #define SHT30_ADDRESS 0x44
