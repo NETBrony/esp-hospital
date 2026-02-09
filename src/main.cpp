@@ -5,21 +5,27 @@
 #include <ArduinoJson.h>
 #include "SHT31.h"
 #include "wifi_manage.h"
-#include "mqtt.h" 
+#include "mqtt.h"
+#include "ota.h"
 
-//===== Device Pin Config ========
+//================= SERIAL NUMBER & DEVICE TOKEN ===================
+const char* serial_number = "49c4e46a-a15b-4f41-91f3-edbadeb207de";
+const char* device_token  = "e5c0326dac99f43373d8c9b1239d5384";
+//==================================================================
+
+#define OTA_URL "https://aierpc.dpdns.org/ota/version.json"
+
+//========== FIRMWARE VERSION ================
+#define FW_VERSION "1.0.0"
+//============================================
+
+OTAManager ota(OTA_URL, FW_VERSION);
+
 #define LED_ESP   2
 #define LED_RED   32
 #define LED_GREEN 33
 
-// ✅ ย้าย SHT30 Address มาประกาศตรงนี้ก่อนเรียกใช้ Class
 #define SHT30_ADDRESS 0x44
-
-// =========================================================
-// ⚙️ GLOBAL OBJECTS
-// =========================================================
-const char* serial_number = "49c4e46a-a15b-4f41-91f3-edbadeb207de";
-const char* device_token  = "e5c0326dac99f43373d8c9b1239d5384";
 
 WiFiManager wifiManager;
 
@@ -59,6 +65,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
       Serial.println("Pump turned OFF");
     }
   }
+
+  if (String(topic) == topic_ota_update) {
+        if (message == "CHECK") {
+             // เรียก OTA ทำงาน (ระวัง: ฟังก์ชันนี้จะบล็อกการทำงานจนกว่าจะโหลดเสร็จ)
+             ota.checkAndUpdate();
+        }
+    }
 }
 
 void setupMQTT() {
@@ -82,6 +95,16 @@ void reconnectMQTT() {
       Serial.println(" try again later");
     }
   }
+}
+
+void onOTAStatus(String msg, int progress) {
+    // แสดงใน Serial Monitor
+    Serial.printf("[OTA_CB] %s (%d%%)\n", msg.c_str(), progress);
+    
+    // ส่ง MQTT กลับไปให้ React
+    // Format JSON: {"status": "Downloading...", "progress": 20}
+    String json = "{\"status\":\"" + msg + "\", \"progress\":" + String(progress) + "}";
+    client.publish(topic_ota_status, json.c_str());
 }
 
 // =========================================================
@@ -155,9 +178,10 @@ void setup() {
   // wifiManager.resetSettings(); 
 
   wifiManager.begin(serial_number);
-
-  // 4. Setup MQTT Configuration
   setupMQTT();
+  ota.setCallback(onOTAStatus);
+  client.publish("status/version", FW_VERSION);
+
 }
 
 void loop() {

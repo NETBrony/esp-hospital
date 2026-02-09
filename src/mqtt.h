@@ -7,7 +7,12 @@ const int   mqtt_port   = 8883;
 const char* mqtt_user   = "netbrony";
 const char* mqtt_pass   = "Net_112233";
 
-//====== Topic ======
+//================ ota topic =================
+const char* topic_ota_update   = "ota/update";
+const char* topic_ota_status   = "ota/status";
+//============================================
+
+//=========== general Topic =============
 const char* topic_TempHumi     = "sensor/TempHumi";
 // const char* topic_error        = "sensor/error";
 const char* topic_light_status = "light/status";
