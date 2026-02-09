@@ -9,7 +9,8 @@ const char* mqtt_pass   = "Net_112233";
 
 //====== Topic ======
 const char* topic_TempHumi     = "sensor/TempHumi";
-const char* topic_error        = "sensor/error";
+// const char* topic_error        = "sensor/error";
 const char* topic_light_status = "light/status";
+const char* topic_control      = "control/pump";
 
 #endif
